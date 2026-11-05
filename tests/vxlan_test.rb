@@ -1,5 +1,5 @@
 require 'minitest/autorun'
-require_relative '../plugin/lib/logstash/codecs/sflow/vxlan'
+require_relative '../codec/vxlan'
 require_relative 'fixtures'
 
 class VxlanTest < Minitest::Test

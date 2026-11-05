@@ -1,9 +1,6 @@
-build/
-*.gem
 *.tar
 *.tar.gz
-*.env
-!assets/*.env.example
-*.pcap
+*.gem
 *.log
-*.json.bak
+*.pcap
+*.env

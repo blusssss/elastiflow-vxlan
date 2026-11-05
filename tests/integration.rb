@@ -76,7 +76,7 @@ check(enabled_counter.to_hash.reject { |k, _| k == '@timestamp' } ==
       disabled_counter.to_hash.reject { |k, _| k == '@timestamp' }, 'counter fields changed')
 
 puts "PASS: #{count} full sFlow cases, field equivalence, disable switch, multi-sample isolation, counter path"
-File.write('/work/example-event.json', JSON.pretty_generate(event.to_hash))
+File.write(ENV['SFLOW_EXAMPLE_EVENT'], JSON.pretty_generate(event.to_hash)) if ENV['SFLOW_EXAMPLE_EVENT']
 
 if ENV['SFLOW_FIXTURE_DIR']
   Dir.mkdir(ENV['SFLOW_FIXTURE_DIR']) unless Dir.exist?(ENV['SFLOW_FIXTURE_DIR'])

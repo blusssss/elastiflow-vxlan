@@ -1,14 +1,15 @@
-FROM robcowart/elastiflow-logstash:4.0.1
+ARG BASE_IMAGE=robcowart/elastiflow-logstash:4.0.1
+FROM ${BASE_IMAGE}
 
 USER root
-RUN echo '2cb511dbd0f49ebe5aef979859289190f2c4815db97b1f9b0c03070004c04a58  /usr/share/logstash/vendor/bundle/jruby/2.5.0/gems/logstash-codec-sflow-2.1.3/lib/logstash/codecs/sflow.rb' | sha256sum -c -
-
-COPY plugin/lib/logstash/codecs/sflow.rb /usr/share/logstash/vendor/bundle/jruby/2.5.0/gems/logstash-codec-sflow-2.1.3/lib/logstash/codecs/sflow.rb
-COPY plugin/lib/logstash/codecs/sflow/vxlan.rb /usr/share/logstash/vendor/bundle/jruby/2.5.0/gems/logstash-codec-sflow-2.1.3/lib/logstash/codecs/sflow/vxlan.rb
-RUN chown logstash:root /usr/share/logstash/vendor/bundle/jruby/2.5.0/gems/logstash-codec-sflow-2.1.3/lib/logstash/codecs/sflow.rb /usr/share/logstash/vendor/bundle/jruby/2.5.0/gems/logstash-codec-sflow-2.1.3/lib/logstash/codecs/sflow/vxlan.rb
-
-COPY build/elastiflow.template.json /etc/logstash/elastiflow/templates/elastiflow.template.json
-COPY assets/ /opt/elastiflow-deploy/
-RUN cp /etc/logstash/elastiflow/templates/elastiflow.template.json /opt/elastiflow-deploy/elastiflow.template.json
-
+COPY codec/sflow.rb codec/vxlan.rb /tmp/vxlan/
+RUN set -eu; \
+    codec="$(find /usr/share/logstash/vendor/bundle -type f -path '*/gems/logstash-codec-sflow-2.1.3/lib/logstash/codecs/sflow.rb')"; \
+    test -n "$codec"; \
+    test "$(printf '%s\n' "$codec" | wc -l)" -eq 1; \
+    echo "2cb511dbd0f49ebe5aef979859289190f2c4815db97b1f9b0c03070004c04a58  $codec" | sha256sum -c -; \
+    cp /tmp/vxlan/sflow.rb "$codec"; \
+    cp /tmp/vxlan/vxlan.rb "$(dirname "$codec")/sflow/vxlan.rb"; \
+    chown logstash:root "$codec" "$(dirname "$codec")/sflow/vxlan.rb"; \
+    rm -rf /tmp/vxlan
 USER logstash

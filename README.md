@@ -1,33 +1,67 @@
-# ElastiFlow VXLAN for sFlow
+# sFlow VXLAN decoder for Logstash
 
-为 ElastiFlow 4.0.1 的 `logstash-codec-sflow 2.1.3` 增加标准 VXLAN 报文解析，并提供适用于 Kibana 7.8.1 的生产监控仪表盘。面向仍在运行 Logstash 版 ElastiFlow 的环境。
+给 `logstash-codec-sflow 2.1.3` 增加标准 VXLAN 解码。它从 sFlow v5 的原始采样报文头读取 VNI、VTEP 和内层五元组，原有外层字段和采样流量统计保持原样。适合继续使用 Logstash 版 ElastiFlow 的环境。
 
-设备向 Logstash 发送 sFlow v5 采样报文。解码器从其中的原始报文头识别 UDP 目的端口 4789、VXLAN I 标志和 VNI，解析内层 Ethernet、IPv4/IPv6、TCP/UDP/ICMP。原有外层字段和采样率估算口径保持不变；新增字段位于 `vxlan.*`。
+```mermaid
+flowchart LR
+  A[交换机 / 路由器] -->|sFlow v5 UDP| B[Logstash sflow codec]
+  B --> C[原有外层字段]
+  B --> D[新增 vxlan 字段]
+  C --> E[原有处理链和索引]
+  D --> E
+  E --> F[Elasticsearch / Kibana]
+```
 
-## 内容
+## 能解析什么
 
-- 标准 VXLAN：VNI、VTEP、内层地址、端口、VLAN 和解析状态。
-- 五页 Kibana 仪表盘：总览、VNI 与内层通信、VTEP 与导出设备、协议与服务、解析质量。
-- 独立的字段映射、可复现的派生镜像构建脚本，以及原生 `docker` 部署步骤。
+```mermaid
+flowchart LR
+  A[外层 Ethernet / IPv4 或 IPv6] --> B[UDP 4789]
+  B --> C[VXLAN 头与 VNI]
+  C --> D[内层 Ethernet / VLAN]
+  D --> E[IPv4 或 IPv6]
+  E --> F[TCP / UDP / ICMP]
+```
 
-## 兼容版本
+支持标准 UDP 目的端口 **4789**、VXLAN I 标志、24 位 VNI、内外层 IPv4/IPv6、最多两层 VLAN，以及内层 TCP/UDP 端口和 ICMP 类型。`vxlan.status` 区分 `ok`、`truncated`、`invalid`、`unsupported`。不做 IP 分片重组；非标准端口、GBP/GPE 和自定义 VXLAN 头暂不支持。设备必须把外层与内层头都纳入采样长度，建议从 192 或 256 字节开始检查。
 
-| 组件 | 版本 |
+| 字段 | 例子 |
 | --- | --- |
-| ElastiFlow Logstash 镜像 | `robcowart/elastiflow-logstash:4.0.1` |
-| 底层 Logstash | 7.8.1 |
-| sFlow codec | 2.1.3，源码补丁后的插件列表仍显示此版本 |
-| Elasticsearch / Kibana | 7.8.1 |
-| 已验证的生产 Docker Engine | 1.12.6，使用预先构建并验证的镜像包导入 |
+| `vxlan.vni` | `10020` |
+| `vxlan.outer.source_ip` | 外层 VTEP 地址 |
+| `vxlan.inner.source_ip` | 内层源地址 |
+| `vxlan.inner.destination_port` | 内层服务端口 |
+| `vxlan.status` | `ok` |
 
-本版解析标准 UDP 4789 VXLAN。非标准端口、VXLAN GBP/GPE、IP 分片重组和设备未采集到的内层头不在支持范围内。采样头建议按设备能力设置为 192 或 256 字节。
+## 使用
 
-## 快速开始
+在已有 `logstash-codec-sflow 2.1.3` 的 Logstash 镜像上构建派生镜像：
 
-在构建机上运行 `bash scripts/build-image.sh`，然后按照 [手工部署文档](docs/deploy.md)启动 Elasticsearch、Logstash 和 Kibana，并导入 `assets/vxlan-production-7.8.1.ndjson`。不依赖 Docker Compose。
+```bash
+docker build --build-arg BASE_IMAGE=robcowart/elastiflow-logstash:4.0.1 \
+  -t logstash-sflow-vxlan:2.1.3 .
+```
 
-仪表盘中的字节和速率按 sFlow 采样率估算，表示外层帧流量；记录数是采样数，不是连接数。解析成功率只针对识别出 VXLAN 的记录。
+部署时用新镜像替换**现有 Logstash 容器的镜像**，保留原有环境变量、端口、pipeline、挂载和数据卷。Elasticsearch 与 Kibana 不需要重新部署。解码默认开启；如果 codec 配置中需要关闭，设置 `vxlan_enabled => false`。完整步骤见 [部署与验证](docs/deploy.md)。
 
-## 代码与许可
+构建会检查原版 `sflow.rb` 的 SHA256；基础镜像中的插件已被修改或版本不是 2.1.3 时会停止。已验证的组合是 ElastiFlow Logstash 4.0.1 与 Elasticsearch/Kibana 7.8.1。
 
-`plugin/` 基于 Elasticsearch 发布的 `logstash-codec-sflow 2.1.3`，保留其 Apache-2.0 许可和 NOTICE。新增解析器位于 `plugin/lib/logstash/codecs/sflow/vxlan.rb`。本仓库与 ElastiFlow 官方项目无隶属关系。
+## 可视化示例
+
+下图使用本地合成 sFlow 流量演示 VNI、内层通信与解析质量；图中的数值只用于展示字段如何分析。仓库只提供解码功能，您可以在现有 Kibana 中按需制作图表。
+
+![VNI 与内层流量示例](docs/images/vni-traffic.svg)
+
+![内层服务端口示例](docs/images/service-ports.svg)
+
+![解析状态示例](docs/images/decode-status.svg)
+
+采样字节与速率是按 sFlow 采样率估算的**外层帧流量**，不是应用载荷；记录数是采样数，不是连接数。不同 VNI 的相同内网 IP 应分别统计。
+
+## 验证
+
+本机使用原版 ElastiFlow Logstash 镜像构建，并在镜像内的 JRuby 运行测试：21 个解码用例、48 个断言全部通过；完整 codec 回放验证了普通流量、标准 VXLAN、截断样本、开关关闭、多个 sample 和 counter 路径。测试代码见 [`tests/`](tests/)。
+
+## 许可
+
+`codec/sflow.rb` 基于 Elasticsearch 发布的 `logstash-codec-sflow 2.1.3`，保留 Apache-2.0 许可和 NOTICE。本项目与 ElastiFlow 官方项目无隶属关系。
