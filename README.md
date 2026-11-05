@@ -48,13 +48,23 @@ docker build --build-arg BASE_IMAGE=robcowart/elastiflow-logstash:4.0.1 \
 
 ## 可视化示例
 
-下图使用本地合成 sFlow 流量演示 VNI、内层通信与解析质量；图中的数值只用于展示字段如何分析。仓库只提供解码功能，您可以在现有 Kibana 中按需制作图表。
+以下是本机 Kibana 7.8.1 的实际截图。测试程序通过 UDP 发送了 1200 条合成 sFlow 采样报文，Logstash 全部入库；其中 1072 条标准 VXLAN 解析成功，65 条截断，23 条为不支持的扩展格式，40 条是普通非 VXLAN 流量。截图展示的是测试环境中的图表，仓库的通用部署只包含解码功能。
 
-![VNI 与内层流量示例](docs/images/vni-traffic.svg)
+**VNI 与解析状态**
 
-![内层服务端口示例](docs/images/service-ports.svg)
+![本机 Kibana 实际截图：VNI 流量占比、内层协议和解析状态](docs/images/kibana-overview.png)
 
-![解析状态示例](docs/images/decode-status.svg)
+**内层通信**
+
+![本机 Kibana 实际截图：按 VNI 分隔的内层地址通信关系](docs/images/kibana-vni.png)
+
+**内层服务**
+
+![本机 Kibana 实际截图：内层协议、服务端口和 VNI 热力图](docs/images/kibana-services.png)
+
+**解析质量**
+
+![本机 Kibana 实际截图：解析状态和异常原因](docs/images/kibana-quality.png)
 
 采样字节与速率是按 sFlow 采样率估算的**外层帧流量**，不是应用载荷；记录数是采样数，不是连接数。不同 VNI 的相同内网 IP 应分别统计。
 
