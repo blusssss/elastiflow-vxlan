@@ -1,0 +1,9 @@
+build/
+*.gem
+*.tar
+*.tar.gz
+*.env
+!assets/*.env.example
+*.pcap
+*.log
+*.json.bak

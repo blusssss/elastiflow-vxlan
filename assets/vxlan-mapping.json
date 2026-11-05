@@ -1,0 +1,43 @@
+{
+  "properties": {
+    "vxlan": {
+      "properties": {
+        "status": {"type": "keyword"},
+        "reason": {"type": "keyword"},
+        "vni": {"type": "integer"},
+        "flags": {"type": "integer"},
+        "outer": {
+          "properties": {
+            "source_ip": {"type": "ip"},
+            "destination_ip": {"type": "ip"},
+            "source_port": {"type": "integer"},
+            "destination_port": {"type": "integer"},
+            "source_mac": {"type": "keyword"},
+            "destination_mac": {"type": "keyword"},
+            "vlan_ids": {"type": "integer"},
+            "ether_type": {"type": "integer"},
+            "ip_version": {"type": "integer"},
+            "ip_protocol": {"type": "integer"}
+          }
+        },
+        "inner": {
+          "properties": {
+            "source_ip": {"type": "ip"},
+            "destination_ip": {"type": "ip"},
+            "source_port": {"type": "integer"},
+            "destination_port": {"type": "integer"},
+            "source_mac": {"type": "keyword"},
+            "destination_mac": {"type": "keyword"},
+            "vlan_ids": {"type": "integer"},
+            "ether_type": {"type": "integer"},
+            "ip_version": {"type": "integer"},
+            "ip_protocol": {"type": "integer"},
+            "tcp_flags": {"type": "integer"},
+            "icmp_type": {"type": "integer"},
+            "icmp_code": {"type": "integer"}
+          }
+        }
+      }
+    }
+  }
+}
