@@ -1,15 +1,14 @@
-# sFlow VXLAN decoder for Logstash
+# ElastiFlow VXLAN
 
-给 `logstash-codec-sflow 2.1.3` 增加标准 VXLAN 解码。它从 sFlow v5 的原始采样报文头读取 VNI、VTEP 和内层五元组，原有外层字段和采样流量统计保持原样。适合继续使用 Logstash 版 ElastiFlow 的环境。
+[ElastiFlow 旧版](https://github.com/robcowart/elastiflow/tree/v4.0.1)使用 Logstash 接收 NetFlow、sFlow 和 IPFIX，将流量记录写入 Elasticsearch，再由 Kibana 展示。本项目为其中的 **sFlow 采样报文**补充标准 VXLAN 解析，让现有系统除了外层 VTEP 流量，还能按 VNI、内层地址和服务端口查看通信。
+
+仓库交付三个部分：`logstash-codec-sflow 2.1.3` 的解码补丁、合并 VXLAN 字段的 ElastiFlow 索引模板，以及可直接导入的 Kibana 图表。本项目是旧版 Logstash 方案的扩展，与 ElastiFlow 官方项目无隶属关系；新版 Unified Flow Collector 不在适用范围内。
 
 ```mermaid
 flowchart LR
-  A[交换机 / 路由器] -->|sFlow v5 UDP| B[Logstash sflow codec]
-  B --> C[原有外层字段]
-  B --> D[新增 vxlan 字段]
-  C --> E[原有处理链和索引]
-  D --> E
-  E --> F[Elasticsearch / Kibana]
+  A[交换机 / 路由器] -->|sFlow v5 UDP| B[Logstash + ElastiFlow]
+  B -->|原有外层字段 + vxlan.*| C[Elasticsearch]
+  C --> D[Kibana VXLAN 仪表盘]
 ```
 
 ## 能解析什么
@@ -33,22 +32,27 @@ flowchart LR
 | `vxlan.inner.destination_port` | 内层服务端口 |
 | `vxlan.status` | `ok` |
 
-## 使用
+## 图表包
 
-在已有 `logstash-codec-sflow 2.1.3` 的 Logstash 镜像上构建派生镜像：
+[`assets/kibana-7.8.1.ndjson`](assets/kibana-7.8.1.ndjson) 包含 **5 页仪表盘、53 个可视化、1 个异常明细搜索和 1 个索引模式**。页面覆盖流量总览、VNI 与内层通信、VTEP 与导出设备、协议与服务、解析质量。索引模式默认为 `elastiflow-4.0.1-*`，可按[部署文档](docs/deploy.md#导入-kibana-图表)导入已有 Kibana 7.8.1。
+
+## 安装
+
+已验证的组合是 ElastiFlow Logstash `4.0.1`、`logstash-codec-sflow 2.1.3`、Elasticsearch/Kibana `7.8.1`。已有三容器系统只需构建并切换 Logstash 镜像、更新当前索引映射、导入图表；ES/Kibana 容器与原有数据卷可继续使用。不需要 Docker Compose。
 
 ```bash
-docker build --build-arg BASE_IMAGE=robcowart/elastiflow-logstash:4.0.1 \
-  -t logstash-sflow-vxlan:2.1.3 .
+git clone https://github.com/blusssss/elastiflow-vxlan.git
+cd elastiflow-vxlan
+bash scripts/build-elastiflow.sh
 ```
 
-部署时用新镜像替换**现有 Logstash 容器的镜像**，保留原有环境变量、端口、pipeline、挂载和数据卷。Elasticsearch 与 Kibana 不需要重新部署。解码默认开启；如果 codec 配置中需要关闭，设置 `vxlan_enabled => false`。完整步骤见 [部署与验证](docs/deploy.md)。
+构建脚本自动从原版镜像导出 ElastiFlow 索引模板，合并 VXLAN 映射，并生成 `elastiflow-vxlan:4.0.1`。接着按[手工部署与验收](docs/deploy.md)切换 Logstash 并导入 Kibana 图表。解码默认开启；如需关闭，可在 codec 配置中设置 `vxlan_enabled => false`。
 
-构建会检查原版 `sflow.rb` 的 SHA256；基础镜像中的插件已被修改或版本不是 2.1.3 时会停止。已验证的组合是 ElastiFlow Logstash 4.0.1 与 Elasticsearch/Kibana 7.8.1。
+使用其他已安装原版 sFlow codec 2.1.3 的 Logstash 镜像时，可单独使用 [`Dockerfile`](Dockerfile) 构建纯解码补丁。图表包只针对上述 ElastiFlow/Elastic 版本验收。
 
 ## 可视化示例
 
-以下是本机 Kibana 7.8.1 的实际截图。测试程序通过 UDP 发送了 1200 条合成 sFlow 采样报文，Logstash 全部入库；其中 1072 条标准 VXLAN 解析成功，65 条截断，23 条为不支持的扩展格式，40 条是普通非 VXLAN 流量。截图展示的是测试环境中的图表，仓库的通用部署只包含解码功能。
+以下是本机 Kibana 7.8.1 的实际截图，展示了随仓库交付的图表布局。测试程序通过 UDP 发送了 1200 条合成 sFlow 采样报文，Logstash 全部入库；其中 1072 条标准 VXLAN 解析成功，65 条截断，23 条为不支持的扩展格式，40 条是普通非 VXLAN 流量。截图数据不包含在仓库中。
 
 **VNI 与解析状态**
 
